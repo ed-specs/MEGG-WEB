@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth, db } from "../../../config/firebaseConfig.js"
+import { auth, db } from "../../config/firebaseConfig.js"
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, getDoc } from "firebase/firestore"
 
 // Get all notifications for the current user

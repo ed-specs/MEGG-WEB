@@ -472,6 +472,54 @@ export const exportToPDF = async (data, filename, title, columns) => {
   doc.save(`${filename}.pdf`);
 }
 
+// Export to DOCX
+export const exportToDOCX = async (data, filename, title, columns) => {
+  if (!data || data.length === 0) {
+    console.warn('No data to export')
+    return
+  }
+
+  try {
+    const docxDoc = new Document({
+      sections: [
+        {
+          properties: {},
+          children: [
+            new Paragraph({ text: title || 'Report', heading: 'Heading1' }),
+            new Paragraph({ text: `Generated on: ${new Date().toLocaleString()}` }),
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              rows: [
+                new TableRow({
+                  children: (columns || Object.keys(data[0]).map((key) => ({ key, header: key }))).map((col) =>
+                    new TableCell({
+                      children: [new Paragraph({ text: col.header ?? String(col), alignment: AlignmentType.CENTER })],
+                    })
+                  ),
+                }),
+                ...data.map((row) =>
+                  new TableRow({
+                    children: (columns || Object.keys(row).map((key) => ({ key, header: key }))).map((col) =>
+                      new TableCell({
+                        children: [new Paragraph(String(row[col.key] ?? ''))],
+                      })
+                    ),
+                  })
+                ),
+              ],
+            }),
+          ],
+        },
+      ],
+    })
+
+    const blob = await Packer.toBlob(docxDoc)
+    saveAs(blob, `${filename}.docx`)
+  } catch (error) {
+    console.error('Error exporting to DOCX:', error)
+  }
+}
+
 // Helper to add page number and footer
 function addFooter(doc, pageWidth, pageHeight) {
   const pageCount = doc.internal.getNumberOfPages();

@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+body {
+  background-image: url("/background.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed; /* Ensures it stays in place when scrolling */
+}
+
+/* Export Header Styles */
+.export-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 2px solid #333;
+  margin-bottom: 20px;
+  background-color: #f8f9fa;
+  page-break-inside: avoid;
+}
+
+.export-header .logo-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 40px;
+  margin-bottom: 15px;
+}
+
+.export-header .logo-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.export-header .logo-item img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+}
+
+.export-header .logo-label {
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.export-header .logo-label.minsu {
+  color: #1e40af;
+}
+
+.export-header .logo-label.ccs {
+  color: #1e40af;
+}
+
+.export-header .logo-label.megg {
+  color: #ea580c;
+}
+
+.export-header .institutional-info {
+  text-align: center;
+  line-height: 1.4;
+}
+
+.export-header .institutional-info h1 {
+  font-size: 18px;
+  font-weight: bold;
+  color: #1f2937;
+  margin: 0 0 5px 0;
+}
+
+.export-header .institutional-info h2 {
+  font-size: 16px;
+  font-weight: bold;
+  color: #374151;
+  margin: 0 0 5px 0;
+}
+
+.export-header .institutional-info h3 {
+  font-size: 14px;
+  font-weight: bold;
+  color: #4b5563;
+  margin: 0 0 5px 0;
+}
+
+.export-header .institutional-info p {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Print styles for export headers */
+@media print {
+  .export-header {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}

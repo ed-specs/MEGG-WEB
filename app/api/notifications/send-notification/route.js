@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { firestore, messaging } from "../../../config/firebase-admin"
+import { getAdminServices } from "../../../config/firebase-admin"
 
 export async function POST(request) {
   try {
@@ -8,6 +8,8 @@ export async function POST(request) {
     if (!userId) {
       return NextResponse.json({ success: false, error: "User ID is required" }, { status: 400 })
     }
+
+    const { firestore, messaging } = getAdminServices()
 
     // Check if notifications are enabled for this user
     const settingsDoc = await firestore.collection("notificationSettings").doc(userId).get()

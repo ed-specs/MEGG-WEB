@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Navbar } from "../../components/NavBar";
 import Notifications from "../../components/ui/NotificationDesktop";
-import Sidebar from "../../components/Sidebar";
+import { Sidebar } from "../../components/Sidebar";
 
 export default function NotificationPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);

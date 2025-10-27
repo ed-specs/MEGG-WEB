@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { firestore } from "../../../config/firebase-admin"
+import { getAdminServices } from "../../../config/firebase-admin"
 import admin from "firebase-admin"
 
 export async function POST(request) {
@@ -15,6 +15,8 @@ export async function POST(request) {
         { status: 400 },
       )
     }
+
+    const { firestore } = getAdminServices()
 
     // Update the token in Firestore
     await firestore.collection("fcmTokens").doc(userId).set(

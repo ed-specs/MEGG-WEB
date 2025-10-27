@@ -1,17 +1,5 @@
 import { NextResponse } from "next/server"
-import admin from "firebase-admin"
-
-// Initialize Firebase Admin SDK if not already initialized
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-    }),
-    databaseURL: process.env.FIREBASE_DATABASE_URL,
-  })
-}
+import { getAdminServices } from "../../../config/firebase-admin"
 
 export async function POST(request) {
   try {
@@ -21,9 +9,10 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: "User ID is required" }, { status: 400 })
     }
 
+    const { firestore, messaging } = getAdminServices()
+
     // Get the user's FCM token from Firestore
-    const db = admin.firestore()
-    const tokenDoc = await db.collection("fcmTokens").doc(userId).get()
+    const tokenDoc = await firestore.collection("fcmTokens").doc(userId).get()
 
     if (!tokenDoc.exists || !tokenDoc.data().token) {
       return NextResponse.json({ success: false, error: "No FCM token found for this user" }, { status: 404 })
@@ -32,7 +21,7 @@ export async function POST(request) {
     const token = tokenDoc.data().token
 
     // Send the welcome notification
-    await admin.messaging().send({
+    await messaging.send({
       token: token,
       notification: {
         title: "Welcome to MEGG TECH",

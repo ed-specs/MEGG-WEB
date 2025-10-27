@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -10,7 +10,7 @@ import { collection, query, where, getDocs, updateDoc, doc } from "firebase/fire
 import { generateOTP, calculateOTPExpiry } from "../../../utils/otp"
 import { sendEmailVerification } from "firebase/auth"
 
-export default function VerifyPage() {
+function VerifyPageContent() {
   const [otp, setOtp] = useState(new Array(6).fill(""))
   const [globalMessage, setGlobalMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -257,6 +257,13 @@ export default function VerifyPage() {
         </form>
       </div>
     </div>
-  )
-}
+  );
+};
 
+export default function VerifyPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <VerifyPageContent />
+    </Suspense>
+  );
+}

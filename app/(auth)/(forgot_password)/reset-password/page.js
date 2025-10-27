@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { db, auth } from "../../../config/firebaseConfig"
@@ -10,7 +10,7 @@ import Image from "next/image"
 import { verifyResetToken } from "../../../utils/token"
 import bcrypt from "bcryptjs"
 
-export default function PasswordPage() {
+function PasswordPageContent() {
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -343,6 +343,14 @@ export default function PasswordPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function PasswordPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <PasswordPageContent />
+    </Suspense>
   )
 }
 

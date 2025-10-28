@@ -90,7 +90,7 @@ export async function POST(request) {
       // Setup email data
       const mailOptions = {
         from: {
-          name: "M.E.G.G",
+          name: "MEGG",
           address: process.env.EMAIL_USER,
         },
         to: email,

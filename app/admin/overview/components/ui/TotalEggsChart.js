@@ -11,10 +11,12 @@ export function TotalEggsChart({ timeFrame }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const chartRef = useRef(null)
+  const lineRef = useRef(null)
   const [chartDimensions, setChartDimensions] = useState({
     width: 0,
     height: 0,
   })
+  const [pathLength, setPathLength] = useState(0)
   const maxEggs = data.length > 0 ? Math.max(1, ...data.map((d) => d.eggs || d.defects || 0)) : 1
 
   // Fetch data when timeFrame changes
@@ -103,6 +105,18 @@ export function TotalEggsChart({ timeFrame }) {
     }
   }, [data]) // Add data as a dependency
 
+  // Measure path length after layout whenever the line path or size changes
+  useEffect(() => {
+    if (!lineRef.current) return
+    try {
+      const L = lineRef.current.getTotalLength?.() || 0
+      // guard against NaN
+      setPathLength(Number.isFinite(L) ? L : 0)
+    } catch {
+      setPathLength(0)
+    }
+  }, [chartDimensions, data])
+
   const handleMouseMove = (event, d) => {
     if (!chartRef.current) return
     
@@ -188,13 +202,14 @@ export function TotalEggsChart({ timeFrame }) {
             fill="none"
             stroke="#0e5f97"
             strokeWidth="3"
-            strokeDasharray={chartWidth}
-            strokeDashoffset={chartWidth * (1 - animationProgress) - 10}
+            ref={lineRef}
+            strokeDasharray={pathLength || undefined}
+            strokeDashoffset={pathLength ? pathLength * (1 - animationProgress) : undefined}
           />
           <path
             d={areaPath}
             fill="url(#lineGradient)"
-            opacity={Math.min(1, (chartWidth - (chartWidth * (1 - animationProgress) - 3)) / chartWidth)}
+            opacity={animationProgress}
           />
           {data.map((d, i) => {
             const x = (i / (data.length - 1)) * chartWidth

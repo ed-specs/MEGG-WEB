@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { EggDefectsChart } from "./ui/EggDefectsChart";
-import { EggSizesChart } from "./ui/EggSizesChart";
 import { TotalEggDefectChart } from "./ui/TotalEggDefectChart";
 import { TotalEggsChart } from "./ui/TotalEggsChart";
 import { Egg, Bug } from "lucide-react";
@@ -11,7 +9,6 @@ import { EggDefectStats } from "./ui/EggDefectStats";
 
 export default function EggCharts() {
   const [timeFrame, setTimeFrame] = useState("daily");
-  const [chartType, setChartType] = useState("total");
   const [activeTab, setActiveTab] = useState("sizing"); // "sizing" or "defects"
 
   return (
@@ -54,7 +51,7 @@ export default function EggCharts() {
               : "Egg Defects Overview"}
           </h3>
 
-          {/* Time Frame and Chart Type Selectors */}
+          {/* Time Frame Selector */}
           <div className="flex items-start sm:items-center gap-4">
             <select
               className="w-full sm:w-auto rounded-full border border-primary/20 bg-white px-3 py-2 text-sm text-primary outline-none focus:ring-2 focus:ring-primary/20"
@@ -64,31 +61,15 @@ export default function EggCharts() {
               <option value="daily">Daily</option>
               <option value="monthly">Monthly</option>
             </select>
-            <select
-              className="w-full sm:w-auto rounded-full border border-primary/20 bg-white px-3 py-2 text-sm text-primary outline-none focus:ring-2 focus:ring-primary/20"
-              value={chartType}
-              onChange={(e) => setChartType(e.target.value)}
-            >
-              <option value="total">Total Eggs</option>
-              <option value="details">
-                {activeTab === "sizing" ? "Egg Sizes" : "Defect Types"}
-              </option>
-            </select>
           </div>
         </div>
 
-        {/* Chart Section */}
+        {/* Chart Section (always total) */}
         <div className="h-[300px]">
           {activeTab === "sizing" ? (
-            chartType === "total" ? (
-              <TotalEggsChart timeFrame={timeFrame} />
-            ) : (
-              <EggSizesChart timeFrame={timeFrame} />
-            )
-          ) : chartType === "total" ? (
-            <TotalEggDefectChart timeFrame={timeFrame} />
+            <TotalEggsChart timeFrame={timeFrame} />
           ) : (
-            <EggDefectsChart timeFrame={timeFrame} />
+            <TotalEggDefectChart timeFrame={timeFrame} />
           )}
         </div>
       </div>

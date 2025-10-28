@@ -1,66 +1,64 @@
-import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore"
+import { collection, getDocs, query, where, orderBy, doc, getDoc } from "firebase/firestore"
 import { db } from "../../../config/firebaseConfig"
 import { getCurrentUser } from "../../../utils/auth-utils"
 
-// Get user's linked machines
-export const getUserLinkedMachines = async () => {
+// Helpers
+const tsToDate = (ts) => {
   try {
-    const user = await getCurrentUser()
+    if (!ts) return new Date()
+    if (typeof ts?.toDate === "function") return ts.toDate()
+    if (typeof ts?.seconds === "number") return new Date(ts.seconds * 1000)
+    const d = new Date(ts)
+    return isNaN(d) ? new Date() : d
+  } catch {
+    return new Date()
+  }
+}
+
+const getCurrentAccountId = async () => {
+  try {
+    const user = getCurrentUser()
     if (!user) {
       console.log("No authenticated user found")
-      return []
+      return null
     }
 
-    const userDoc = await getDocs(query(collection(db, "users"), where("uid", "==", user.uid)))
-    
-    if (userDoc.empty) {
-      console.log("No user document found")
-      return []
-    }
-
-    const userData = userDoc.docs[0].data()
-    const linkedMachines = userData.linked_machines || []
-    
-    console.log("User linked machines:", linkedMachines)
-    return linkedMachines
+    const userDocRef = doc(db, "users", user.uid)
+    const userDoc = await getDoc(userDocRef)
+    if (!userDoc.exists()) return null
+    const data = userDoc.data()
+    return data?.accountId || null
   } catch (error) {
-    console.error("Error getting user linked machines:", error)
-    return []
+    console.error("Error getting accountId:", error)
+    return null
   }
 }
 
 // Get daily total eggs data for linked machines
 export const getMachineLinkedDailyTotalEggs = async () => {
   try {
-    const linkedMachines = await getUserLinkedMachines()
-    
-    if (linkedMachines.length === 0) {
-      console.log("No linked machines found for daily total eggs")
-      return []
-    }
+    const accountId = await getCurrentAccountId()
+    if (!accountId) return []
 
     // Get data for the last 7 days
     const endDate = new Date()
     const startDate = new Date()
     startDate.setDate(endDate.getDate() - 7)
 
-    const weightLogsQuery = query(
-      collection(db, "weight_logs"),
-      where("machine_id", "in", linkedMachines),
-      where("timestamp", ">=", startDate),
-      where("timestamp", "<=", endDate),
-      orderBy("timestamp", "asc")
+    const batchesQ = query(
+      collection(db, "batches"),
+      where("accountId", "==", accountId)
     )
 
-    const snapshot = await getDocs(weightLogsQuery)
-    const logs = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }))
+    const snapshot = await getDocs(batchesQ)
+    const docs = snapshot.docs
+      .map(d => d.data())
+      .filter(b => {
+        const created = tsToDate(b?.createdAt)
+        return created >= startDate && created <= endDate
+      })
 
-    console.log("Daily total eggs logs:", logs.length)
-
-    // Group by day and count total eggs
+    // Group by day and sum total eggs
     const dailyData = {}
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     
@@ -72,11 +70,16 @@ export const getMachineLinkedDailyTotalEggs = async () => {
       dailyData[dayName] = 0
     }
 
-    // Count eggs for each day
-    logs.forEach(log => {
-      const logDate = log.timestamp.toDate()
-      const dayName = dayNames[logDate.getDay()]
-      dailyData[dayName] = (dailyData[dayName] || 0) + 1
+    // Sum eggs (non-defect only) for each day
+    docs.forEach(b => {
+      const created = tsToDate(b?.createdAt)
+      const dayName = dayNames[created.getDay()]
+      const stats = b?.stats || {}
+      const good = typeof stats.goodEggs === 'number'
+        ? Number(stats.goodEggs)
+        : Number((stats.smallEggs||0) + (stats.mediumEggs||0) + (stats.largeEggs||0))
+      const total = good
+      dailyData[dayName] = (dailyData[dayName] || 0) + total
     })
 
     // Convert to array format
@@ -85,7 +88,6 @@ export const getMachineLinkedDailyTotalEggs = async () => {
       eggs: dailyData[day] || 0
     }))
 
-    console.log("Daily total eggs result:", result)
     return result
   } catch (error) {
     console.error("Error getting daily total eggs:", error)
@@ -96,35 +98,28 @@ export const getMachineLinkedDailyTotalEggs = async () => {
 // Get monthly total eggs data for linked machines
 export const getMachineLinkedMonthlyTotalEggs = async () => {
   try {
-    const linkedMachines = await getUserLinkedMachines()
-    
-    if (linkedMachines.length === 0) {
-      console.log("No linked machines found for monthly total eggs")
-      return []
-    }
+    const accountId = await getCurrentAccountId()
+    if (!accountId) return []
 
     // Get data for the last 6 months
     const endDate = new Date()
     const startDate = new Date()
     startDate.setMonth(endDate.getMonth() - 6)
 
-    const weightLogsQuery = query(
-      collection(db, "weight_logs"),
-      where("machine_id", "in", linkedMachines),
-      where("timestamp", ">=", startDate),
-      where("timestamp", "<=", endDate),
-      orderBy("timestamp", "asc")
+    const batchesQ = query(
+      collection(db, "batches"),
+      where("accountId", "==", accountId)
     )
 
-    const snapshot = await getDocs(weightLogsQuery)
-    const logs = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }))
+    const snapshot = await getDocs(batchesQ)
+    const docs = snapshot.docs
+      .map(d => d.data())
+      .filter(b => {
+        const created = tsToDate(b?.createdAt)
+        return created >= startDate && created <= endDate
+      })
 
-    console.log("Monthly total eggs logs:", logs.length)
-
-    // Group by month and count total eggs
+    // Group by month and sum total eggs
     const monthlyData = {}
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     
@@ -136,11 +131,16 @@ export const getMachineLinkedMonthlyTotalEggs = async () => {
       monthlyData[monthName] = 0
     }
 
-    // Count eggs for each month
-    logs.forEach(log => {
-      const logDate = log.timestamp.toDate()
-      const monthName = monthNames[logDate.getMonth()]
-      monthlyData[monthName] = (monthlyData[monthName] || 0) + 1
+    // Sum eggs (non-defect only) for each month
+    docs.forEach(b => {
+      const created = tsToDate(b?.createdAt)
+      const monthName = monthNames[created.getMonth()]
+      const stats = b?.stats || {}
+      const good = typeof stats.goodEggs === 'number'
+        ? Number(stats.goodEggs)
+        : Number((stats.smallEggs||0) + (stats.mediumEggs||0) + (stats.largeEggs||0))
+      const total = good
+      monthlyData[monthName] = (monthlyData[monthName] || 0) + total
     })
 
     // Convert to array format
@@ -149,7 +149,6 @@ export const getMachineLinkedMonthlyTotalEggs = async () => {
       eggs: monthlyData[month] || 0
     }))
 
-    console.log("Monthly total eggs result:", result)
     return result
   } catch (error) {
     console.error("Error getting monthly total eggs:", error)

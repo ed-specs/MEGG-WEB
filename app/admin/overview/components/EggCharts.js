@@ -94,7 +94,7 @@ export default function EggCharts() {
       </div>
 
       {/* Statistics Grid */}
-      {activeTab === "sizing" ? <EggSizeStats/> : <EggDefectStats/>}
+      {activeTab === "sizing" ? <EggSizeStats timeFrame={timeFrame}/> : <EggDefectStats/>}
     </div>
   );
 }

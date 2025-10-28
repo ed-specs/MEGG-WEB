@@ -1,81 +1,62 @@
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore"
+import { collection, getDocs, query, where, orderBy, doc, getDoc } from "firebase/firestore"
 import { db } from "../../../config/firebaseConfig"
 import { getCurrentUser } from "../../../utils/auth-utils"
 
-// Get user's linked machines
-export const getUserLinkedMachines = async () => {
+// Helpers
+const tsToDate = (ts) => {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      console.log("No authenticated user found")
-      return []
-    }
-
-    const userDoc = await getDocs(query(collection(db, "users"), where("uid", "==", user.uid)))
-    
-    if (userDoc.empty) {
-      console.log("No user document found")
-      return []
-    }
-
-    const userData = userDoc.docs[0].data()
-    const linkedMachines = userData.linked_machines || []
-    
-    console.log("User linked machines:", linkedMachines)
-    return linkedMachines
-  } catch (error) {
-    console.error("Error getting user linked machines:", error)
-    return []
+    if (!ts) return new Date()
+    if (typeof ts?.toDate === 'function') return ts.toDate()
+    if (typeof ts?.seconds === 'number') return new Date(ts.seconds * 1000)
+    const d = new Date(ts)
+    return isNaN(d) ? new Date() : d
+  } catch {
+    return new Date()
   }
 }
 
-// Map raw size values to user-friendly labels
-const mapSizeToLabel = (size) => {
-  const sizeMap = {
-    'TOO_SMALL': 'small',
-    'SMALL': 'small',
-    'MEDIUM': 'medium',
-    'LARGE': 'large',
-    'XL': 'large',
-    'TOO_LARGE': 'large',
-    'JUMBO': 'large',
-    'DEFECT': 'defect'
+const getCurrentAccountId = async () => {
+  try {
+    const user = getCurrentUser()
+    if (!user) return null
+    const ref = doc(db, "users", user.uid)
+    const snap = await getDoc(ref)
+    if (!snap.exists()) return null
+    return snap.data()?.accountId || null
+  } catch (e) {
+    console.error("EggSizesChart: failed to get accountId", e)
+    return null
   }
-  return sizeMap[size] || 'medium'
 }
+
+// Buckets we expose in the UI
+const emptyBuckets = () => ({ large: 0, medium: 0, small: 0, defect: 0 })
 
 // Get daily egg sizes data for linked machines
 export const getMachineLinkedDailyEggSizes = async () => {
   try {
-    const linkedMachines = await getUserLinkedMachines()
-    
-    if (linkedMachines.length === 0) {
-      console.log("No linked machines found for daily egg sizes")
-      return []
-    }
+    const accountId = await getCurrentAccountId()
+    if (!accountId) return []
 
     // Get data for the last 7 days
     const endDate = new Date()
     const startDate = new Date()
     startDate.setDate(endDate.getDate() - 7)
 
-    const weightLogsQuery = query(
-      collection(db, "weight_logs"),
-      where("machine_id", "in", linkedMachines),
-      where("timestamp", ">=", startDate),
-      where("timestamp", "<=", endDate),
-      orderBy("timestamp", "asc")
+    const qBatches = query(
+      collection(db, "batches"),
+      where("accountId", "==", accountId)
     )
 
-    const snapshot = await getDocs(weightLogsQuery)
-    const logs = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }))
+    const snapshot = await getDocs(qBatches)
+    const docs = snapshot.docs
+      .map(d => d.data())
+      .filter(b => {
+        const created = tsToDate(b?.createdAt)
+        return created >= startDate && created <= endDate
+      })
 
-    console.log("Daily egg sizes logs:", logs.length)
-
-    // Group by day and count sizes
+    // Group by day and sum sizes
     const dailyData = {}
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     
@@ -84,22 +65,26 @@ export const getMachineLinkedDailyEggSizes = async () => {
       const date = new Date()
       date.setDate(date.getDate() - (6 - i))
       const dayName = dayNames[date.getDay()]
-      dailyData[dayName] = {
-        large: 0,
-        medium: 0,
-        small: 0,
-        defect: 0
-      }
+      dailyData[dayName] = emptyBuckets()
     }
 
-    // Count eggs for each day and size
-    logs.forEach(log => {
-      const logDate = log.timestamp.toDate()
-      const dayName = dayNames[logDate.getDay()]
-      const sizeLabel = mapSizeToLabel(log.size)
-      
-      if (dailyData[dayName] && dailyData[dayName].hasOwnProperty(sizeLabel)) {
-        dailyData[dayName][sizeLabel]++
+    // Sum eggs for each day and bucket from batch stats
+    docs.forEach(b => {
+      const created = tsToDate(b?.createdAt)
+      const dayName = dayNames[created.getDay()]
+      const s = b?.stats || {}
+      const add = {
+        large: Number(s.largeEggs || 0),
+        medium: Number(s.mediumEggs || 0),
+        small: Number(s.smallEggs || 0),
+        defect: Number((s.badEggs || 0) + (s.dirtyEggs || 0)),
+      }
+      const prev = dailyData[dayName] || emptyBuckets()
+      dailyData[dayName] = {
+        large: prev.large + add.large,
+        medium: prev.medium + add.medium,
+        small: prev.small + add.small,
+        defect: prev.defect + add.defect,
       }
     })
 
@@ -112,7 +97,6 @@ export const getMachineLinkedDailyEggSizes = async () => {
       defect: dailyData[day]?.defect || 0
     }))
 
-    console.log("Daily egg sizes result:", result)
     return result
   } catch (error) {
     console.error("Error getting daily egg sizes:", error)
@@ -123,35 +107,28 @@ export const getMachineLinkedDailyEggSizes = async () => {
 // Get monthly egg sizes data for linked machines
 export const getMachineLinkedMonthlyEggSizes = async () => {
   try {
-    const linkedMachines = await getUserLinkedMachines()
-    
-    if (linkedMachines.length === 0) {
-      console.log("No linked machines found for monthly egg sizes")
-      return []
-    }
+    const accountId = await getCurrentAccountId()
+    if (!accountId) return []
 
     // Get data for the last 6 months
     const endDate = new Date()
     const startDate = new Date()
     startDate.setMonth(endDate.getMonth() - 6)
 
-    const weightLogsQuery = query(
-      collection(db, "weight_logs"),
-      where("machine_id", "in", linkedMachines),
-      where("timestamp", ">=", startDate),
-      where("timestamp", "<=", endDate),
-      orderBy("timestamp", "asc")
+    const qBatches = query(
+      collection(db, "batches"),
+      where("accountId", "==", accountId)
     )
 
-    const snapshot = await getDocs(weightLogsQuery)
-    const logs = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }))
+    const snapshot = await getDocs(qBatches)
+    const docs = snapshot.docs
+      .map(d => d.data())
+      .filter(b => {
+        const created = tsToDate(b?.createdAt)
+        return created >= startDate && created <= endDate
+      })
 
-    console.log("Monthly egg sizes logs:", logs.length)
-
-    // Group by month and count sizes
+    // Group by month and sum sizes
     const monthlyData = {}
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     
@@ -160,22 +137,26 @@ export const getMachineLinkedMonthlyEggSizes = async () => {
       const date = new Date()
       date.setMonth(date.getMonth() - (5 - i))
       const monthName = monthNames[date.getMonth()]
-      monthlyData[monthName] = {
-        large: 0,
-        medium: 0,
-        small: 0,
-        defect: 0
-      }
+      monthlyData[monthName] = emptyBuckets()
     }
 
-    // Count eggs for each month and size
-    logs.forEach(log => {
-      const logDate = log.timestamp.toDate()
-      const monthName = monthNames[logDate.getMonth()]
-      const sizeLabel = mapSizeToLabel(log.size)
-      
-      if (monthlyData[monthName] && monthlyData[monthName].hasOwnProperty(sizeLabel)) {
-        monthlyData[monthName][sizeLabel]++
+    // Sum eggs for each month from batch stats
+    docs.forEach(b => {
+      const created = tsToDate(b?.createdAt)
+      const monthName = monthNames[created.getMonth()]
+      const s = b?.stats || {}
+      const add = {
+        large: Number(s.largeEggs || 0),
+        medium: Number(s.mediumEggs || 0),
+        small: Number(s.smallEggs || 0),
+        defect: Number((s.badEggs || 0) + (s.dirtyEggs || 0)),
+      }
+      const prev = monthlyData[monthName] || emptyBuckets()
+      monthlyData[monthName] = {
+        large: prev.large + add.large,
+        medium: prev.medium + add.medium,
+        small: prev.small + add.small,
+        defect: prev.defect + add.defect,
       }
     })
 
@@ -188,7 +169,6 @@ export const getMachineLinkedMonthlyEggSizes = async () => {
       defect: monthlyData[month]?.defect || 0
     }))
 
-    console.log("Monthly egg sizes result:", result)
     return result
   } catch (error) {
     console.error("Error getting monthly egg sizes:", error)

@@ -8,12 +8,13 @@ importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compa
 // Firebase configuration (must be literals; env vars are not available in SW)
 const firebaseConfig = {
   apiKey: "AIzaSyCLPbkZawJ6PubRUmswjbDNgsQJSzo-Wq8",
-  authDomain: "megg-tech.firebaseapp.com",
+  authDomain: "megg-web.vercel.app",
   projectId: "megg-tech",
   storageBucket: "megg-tech.firebasestorage.app",
   messagingSenderId: "733167941133",
   appId: "1:733167941133:web:e5a1a8edc9aee56b9dc744"
 };
+
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);

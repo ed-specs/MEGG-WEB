@@ -21,6 +21,14 @@ export async function POST(request) {
     // If push notifications are enabled, send a welcome notification
     if (pushNotificationsEnabled) {
       try {
+        // Check Firebase Admin configuration before initializing
+        const hasServiceJson = !!process.env.FIREBASE_SERVICE_ACCOUNT
+        const hasPieces = !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY)
+        if (!hasServiceJson && !hasPieces) {
+          console.warn("Firebase Admin config missing; skipping welcome push. Provide FIREBASE_SERVICE_ACCOUNT or FIREBASE_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY.")
+          return NextResponse.json({ success: true, skipped: true, reason: "admin_not_configured" })
+        }
+
         const { firestore, messaging } = getAdminServices()
         console.log("Firestore initialized")
 

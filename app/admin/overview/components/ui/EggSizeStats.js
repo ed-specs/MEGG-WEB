@@ -12,6 +12,7 @@ import {
 export function EggSizeStats({ timeFrame = "daily" }) {
   const [stats, setStats] = useState({
     totalEggs: 0,
+    totalAllEggs: 0,
     avgEggsPerHour: 0,
     totalDefects: 0,
     mostCommonSize: "None",
@@ -88,12 +89,20 @@ export function EggSizeStats({ timeFrame = "daily" }) {
   // Stat card data for the right grid
   const statItems = [
     {
+      title: "Total Eggs",
+      value: (stats.totalAllEggs || 0).toLocaleString(),
+      icon: Egg,
+      bgColor: "from-purple-500 to-purple-600",
+      paddingColor: "bg-purple-400",
+    },
+    {
       title: "Total Eggs Sorted",
       value: stats.totalEggs.toLocaleString(),
-      icon: Egg,
+      icon: Target,
       bgColor: "from-blue-500 to-blue-600",
       paddingColor: "bg-blue-400",
     },
+
     {
       title: "Avg Eggs /min",
       value: stats.eggsPerMinute,
@@ -108,7 +117,6 @@ export function EggSizeStats({ timeFrame = "daily" }) {
       bgColor: "from-yellow-400 to-yellow-500",
       paddingColor: "bg-yellow-300",
     },
-    
   ];
   return (
     <div className="flex flex-col md:flex-row gap-6">
@@ -137,7 +145,7 @@ export function EggSizeStats({ timeFrame = "daily" }) {
           )}
         </div>
       </div>
-      
+
       <div className="grid grid-cols-2 gap-6 w-full ">
         {statItems.map(
           ({ title, value, icon: Icon, bgColor, paddingColor }) => (

@@ -254,6 +254,8 @@ export default function EditProfile() {
       await trackProfileChanges(user.uid, oldData, userData)
       setOriginalUserData({ ...userData })
       setGlobalMessage("Profile updated successfully!")
+      // Redirect to profile after save
+      router.push("/admin/profile")
     } catch (error) {
       console.error("Error updating profile:", error)
       setGlobalMessage("Error updating profile")

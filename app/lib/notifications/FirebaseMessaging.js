@@ -42,16 +42,22 @@ const initializeMessaging = async () => {
       return false
     }
 
-    // Ensure service worker is registered
+    // Ensure service worker is registered and ready
     if ('serviceWorker' in navigator) {
       try {
-        // Only register once
         if (!swRegistration) {
           swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
           console.log('Service worker registered for FCM')
         }
+        // Wait until the registration is fully ready
+        await navigator.serviceWorker.ready
+        // Re-assign the active ready registration to be safe
+        if (!swRegistration) {
+          swRegistration = await navigator.serviceWorker.getRegistration().catch(() => null)
+        }
+        console.log('Service worker ready for FCM')
       } catch (swErr) {
-        console.error('Failed to register service worker:', swErr)
+        console.error('Failed to register/ready service worker:', swErr)
         // Without a SW, background push will not work
       }
     } else {
@@ -100,7 +106,7 @@ export const requestNotificationPermission = async () => {
       return false
     }
 
-    // Request permission first
+    // Request permission first (must be from a user gesture upstream)
     const permission = await Notification.requestPermission()
     console.log("Notification permission result:", permission)
     
@@ -116,9 +122,15 @@ export const requestNotificationPermission = async () => {
         // Get FCM token
         try {
           console.log("Getting FCM token...")
+          // Make sure SW registration is ready prior to token call
+          try { await navigator.serviceWorker.ready } catch {}
+          if (!swRegistration) {
+            try { swRegistration = await navigator.serviceWorker.getRegistration() } catch {}
+          }
           const options = swRegistration
             ? { vapidKey, serviceWorkerRegistration: swRegistration }
             : { vapidKey }
+          console.log('VAPID present:', !!vapidKey, 'length:', (vapidKey||'').length, 'SW present:', !!swRegistration)
           const currentToken = await getToken(messaging, options)
 
           if (currentToken) {
@@ -133,7 +145,8 @@ export const requestNotificationPermission = async () => {
             console.log("No registration token available")
           }
         } catch (tokenError) {
-          console.error("Error getting FCM token:", tokenError)
+          console.error("Error getting FCM token:", tokenError?.message || tokenError)
+          if (tokenError?.code) console.error('FCM token error code:', tokenError.code)
           console.log("FCM failed, but browser notifications will still work")
           // Continue with browser notifications even if FCM fails
         }

@@ -215,16 +215,12 @@ export default function ProfilePage() {
                     {contactInfoItems.map(({ id, label, value }) => (
                       <div
                         key={id}
-                        className="col-span-2 md:col-span-1 rounded-lg border border-gray-300 p-4 flex flex-col transition-colors duration-150 hover:border-blue-500"
+                        className={`col-span-2 ${label === "Residential address" ? "md:col-span-2" : "md:col-span-1"} rounded-lg border border-gray-300 p-4 flex flex-col transition-colors duration-150 hover:border-blue-500`}
                       >
                         <span className="text-gray-500 text-sm">{label}</span>
                         <span className="font-medium">{value}</span>
                       </div>
                     ))}
-                    <div className="col-span-2 rounded-lg border border-gray-300 p-4 flex flex-col transition-colors duration-150 hover:border-blue-500">
-                      <span className="text-gray-500 text-sm">Linked Machines</span>
-                      <span className="font-medium">{Array.isArray(userData.linkedMachines) ? userData.linkedMachines.join(", ") : "-"}</span>
-                    </div>
                   </div>
                 </div>
 

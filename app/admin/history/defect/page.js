@@ -14,6 +14,7 @@ export default function Defect() {
   const [selectedTab, setSelectedTab] = useState("defectLog");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
 
   // Tab options for the dropdown
   const tabOptions = [
@@ -47,6 +48,23 @@ export default function Defect() {
 
   return (
     <div className="min-h-screen container mx-auto text-[#1F2421] relative">
+      {/* Backdrop */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm transition-opacity lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <div
+        className={`fixed z-50 inset-y-0 left-0 w-80 bg-white transform shadow-lg transition-transform duration-300 ease-in-out lg:hidden ${
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <Navbar />
+      </div>
+
       {/* MAIN */}
       <div className="flex gap-6 p-4 md:p-6">
         {/* Desktop Sidebar */}
@@ -56,7 +74,7 @@ export default function Defect() {
 
         <div className="flex flex-1 flex-col gap-6 w-full">
           {/* Header */}
-          <Header />
+          <Header setSidebarOpen={setSidebarOpen} />
 
           {/* Main container */}
           <div className="flex flex-col gap-6">

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { db, auth } from "../../config/firebaseConfig.js"
 import { collection, query, where, getDocs, setDoc, doc } from "firebase/firestore"
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth"
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, sendPasswordResetEmail } from "firebase/auth"
 import Image from "next/image"
 import { generateOTP, calculateOTPExpiry } from "../../../app/utils/otp"
 import { generateUniqueAccountId, checkAccountIdExists } from "../../../app/utils/accountId"
@@ -55,7 +55,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  // Load saved credentials on component mount
+  // Load saved credentials on component mount and handle Google redirect result
   useEffect(() => {
     const savedCredentials = localStorage.getItem("rememberedCredentials")
     if (savedCredentials) {
@@ -69,6 +69,47 @@ export default function LoginPage() {
         setRememberMe(true)
       }
     }
+    // Process Google sign-in redirect result (mobile fallback)
+    ;(async () => {
+      try {
+        const result = await getRedirectResult(auth)
+        if (result && result.user) {
+          const user = result.user
+          // Ensure accountId exists
+          const existingUserDoc = await getDocs(query(collection(db, "users"), where("uid", "==", user.uid)))
+          let accountId = null
+          if (!existingUserDoc.empty) {
+            const data = existingUserDoc.docs[0].data()
+            accountId = data.accountId || null
+          }
+          if (!accountId) {
+            accountId = await generateUniqueAccountId(db)
+          }
+          const userDocRef = doc(db, "users", user.uid)
+          await setDoc(
+            userDocRef,
+            {
+              uid: user.uid,
+              username: user.displayName,
+              email: user.email,
+              accountId,
+              createdAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+              provider: "google",
+              verified: true,
+              devicedId: user.uid,
+            },
+            { merge: true },
+          )
+          const userData = { uid: user.uid, username: user.displayName, email: user.email, accountId, deviceId: user.uid }
+          localStorage.setItem("user", JSON.stringify(userData))
+          setGlobalMessage("Login successful!")
+          setTimeout(() => router.replace("/admin/overview"), 1000)
+        }
+      } catch (e) {
+        // No redirect result or error; ignore
+      }
+    })()
   }, [])
 
   const handleInputChange = (e) => {
@@ -109,6 +150,16 @@ export default function LoginPage() {
       const userDoc = querySnapshot.docs[0]
       const userData = userDoc.data()
       const userEmail = userData.email
+      // Ensure accountId exists for dashboard queries
+      let ensuredAccountId = userData.accountId || null
+      if (!ensuredAccountId) {
+        ensuredAccountId = await generateUniqueAccountId(db)
+        await setDoc(
+          doc(db, "users", userDoc.id),
+          { accountId: ensuredAccountId },
+          { merge: true },
+        )
+      }
 
       // Check if user has a hashed password in Firestore
       if (userData.password) {
@@ -198,6 +249,7 @@ export default function LoginPage() {
             uid: firebaseUser?.uid || userDoc.id,
             email: userEmail,
             username: userData.username,
+            accountId: ensuredAccountId,
           }),
         )
 
@@ -206,6 +258,16 @@ export default function LoginPage() {
         // Fallback to Firebase Auth if no hashed password exists
         const userCredential = await signInWithEmailAndPassword(auth, userEmail, form.password)
         const user = userCredential.user
+        // Ensure accountId exists for dashboard queries
+        let ensuredAccountId2 = userData.accountId || null
+        if (!ensuredAccountId2) {
+          ensuredAccountId2 = await generateUniqueAccountId(db)
+          await setDoc(
+            doc(db, "users", user.uid),
+            { accountId: ensuredAccountId2 },
+            { merge: true },
+          )
+        }
 
         // Handle Remember Me
         if (rememberMe) {
@@ -256,6 +318,7 @@ export default function LoginPage() {
             uid: user.uid,
             email: userEmail,
             username: userData.username,
+            accountId: ensuredAccountId2,
           }),
         )
 
@@ -287,8 +350,15 @@ export default function LoginPage() {
       provider.setCustomParameters({
         prompt: "select_account",
       })
-      const result = await signInWithPopup(auth, provider)
-      const user = result.user
+      let user = null
+      try {
+        const result = await signInWithPopup(auth, provider)
+        user = result.user
+      } catch (popupErr) {
+        // Fallback to redirect for mobile/safari popup-blocked scenarios
+        await signInWithRedirect(auth, provider)
+        return
+      }
 
       // Check if user already exists and has an account ID
       const userDocRef = doc(db, "users", user.uid)

@@ -55,7 +55,8 @@ export const getMachineLinkedEggSizeStats = async (period = 'daily') => {
     if (period === 'monthly') {
       startDate.setMonth(endDate.getMonth() - 6)
     } else {
-      startDate.setHours(endDate.getHours() - 24)
+      // Align "Daily" to the overview chart (last 7 days)
+      startDate.setDate(endDate.getDate() - 7)
     }
 
     const qBatches = query(
@@ -100,11 +101,46 @@ export const getMachineLinkedEggSizeStats = async (period = 'daily') => {
       eggsTotalForRate += totalThisBatch
     })
 
-    const totalEggsSorted = totals.small + totals.medium + totals.large
+    let totalEggsSorted = totals.small + totals.medium + totals.large
     const totalDefects = totals.defect
     // Eggs per minute: total eggs (including defects) divided by total elapsed minutes
-    const eggsPerMinute = minutesSum > 0 ? Number((eggsTotalForRate / minutesSum).toFixed(1)) : 0
-    const mostCommonSize = pickMostCommonSize({ small: totals.small, medium: totals.medium, large: totals.large })
+    let eggsPerMinute = minutesSum > 0 ? Number((eggsTotalForRate / minutesSum).toFixed(1)) : 0
+    let mostCommonSize = pickMostCommonSize({ small: totals.small, medium: totals.medium, large: totals.large })
+
+    // Fallback: if no batch stats produced counts, derive from eggs collection
+    if ((totalEggsSorted + totalDefects) === 0) {
+      const qEggs = query(
+        collection(db, "eggs"),
+        where("accountId", "==", accountId)
+      )
+      const eggsSnap = await getDocs(qEggs)
+      let small = 0, medium = 0, large = 0, defect = 0
+      let first = null, last = null, totalEggsAll = 0
+      eggsSnap.docs.forEach(d => {
+        const e = d.data() || {}
+        const created = tsToDate(e?.createdAt)
+        if (created < startDate || created > endDate) return
+        const q = (e.quality || "").toString().toLowerCase()
+        if (q === 'small') small++
+        else if (q === 'medium') medium++
+        else if (q === 'large') large++
+        else if (q === 'bad' || q === 'dirty' || q === 'defect') defect++
+        else if (q === 'good') {
+          // Will be represented as Unspecified in distribution
+          small += 0
+          medium += 0
+          large += 0
+        }
+        totalEggsAll++
+        first = !first || created < first ? created : first
+        last = !last || created > last ? created : last
+      })
+      totals = { small, medium, large, defect, good: small+medium+large }
+      totalEggsSorted = small + medium + large
+      mostCommonSize = (small+medium+large) > 0 ? pickMostCommonSize({ small, medium, large }) : 'None'
+      const minutes = first && last ? Math.max((last - first) / (1000*60), 1) : 0
+      eggsPerMinute = minutes > 0 ? Number((totalEggsAll / minutes).toFixed(1)) : 0
+    }
     // Defect stats
     const bad = batches.reduce((sum, b) => sum + Number((b?.stats?.badEggs) || 0), 0)
     const dirty = batches.reduce((sum, b) => sum + Number((b?.stats?.dirtyEggs) || 0), 0)
@@ -136,12 +172,15 @@ export const getMachineLinkedEggSizeDistribution = async (period = 'daily') => {
     const accountId = await getCurrentAccountId()
     if (!accountId) return []
 
-    // Window depends on period
+    // Window depends on period (match stats function)
     const endDate = new Date()
     const startDate = new Date()
     if (period === 'monthly') {
       startDate.setMonth(endDate.getMonth() - 6)
+    } else if (period === 'weekly') {
+      startDate.setDate(endDate.getDate() - 7)
     } else {
+      // daily default: align to chart (last 7 days)
       startDate.setDate(endDate.getDate() - 7)
     }
 
@@ -166,9 +205,30 @@ export const getMachineLinkedEggSizeDistribution = async (period = 'daily') => {
       sizeCounts.medium += Number(s.mediumEggs || 0)
       sizeCounts.small += Number(s.smallEggs || 0)
       sizeCounts.defect += Number((s.badEggs || 0) + (s.dirtyEggs || 0))
+      // Note: if only goodEggs without size buckets, we don't include an 'Unspecified' bucket
     })
 
-    const totalEggs = Object.values(sizeCounts).reduce((a,b)=>a+b,0)
+    let totalEggs = Object.values(sizeCounts).reduce((a,b)=>a+b,0)
+
+    // Fallback: compute distribution from eggs if batches have no counts
+    if (totalEggs === 0) {
+      const qEggs = query(
+        collection(db, "eggs"),
+        where("accountId", "==", accountId)
+      )
+      const eggsSnap = await getDocs(qEggs)
+      eggsSnap.docs.forEach(d => {
+        const e = d.data() || {}
+        const created = tsToDate(e?.createdAt)
+        if (created < startDate || created > endDate) return
+        const q = (e.quality || "").toString().toLowerCase()
+        if (q === 'small') sizeCounts.small++
+        else if (q === 'medium') sizeCounts.medium++
+        else if (q === 'large') sizeCounts.large++
+        else if (q === 'bad' || q === 'dirty' || q === 'defect') sizeCounts.defect++
+      })
+      totalEggs = Object.values(sizeCounts).reduce((a,b)=>a+b,0)
+    }
     const colors = {
       large: "#b0b0b0",
       medium: "#fb510f",

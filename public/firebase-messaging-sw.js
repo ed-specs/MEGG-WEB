@@ -5,14 +5,14 @@
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
-// Firebase configuration
+// Firebase configuration (must be literals; env vars are not available in SW)
 const firebaseConfig = {
-  apiKey: "AIzaSyBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-  authDomain: "your-project.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef123456"
+  apiKey: "AIzaSyCLPbkZawJ6PubRUmswjbDNgsQJSzo-Wq8",
+  authDomain: "megg-tech.firebaseapp.com",
+  projectId: "megg-tech",
+  storageBucket: "megg-tech.firebasestorage.app",
+  messagingSenderId: "733167941133",
+  appId: "1:733167941133:web:e5a1a8edc9aee56b9dc744"
 };
 
 // Initialize Firebase

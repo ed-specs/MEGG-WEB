@@ -8,6 +8,7 @@ const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
 
 // Initialize Firebase Cloud Messaging
 let messaging = null
+let swRegistration = null
 
 // Check if FCM is supported in this browser
 export const isFCMSupported = async () => {
@@ -39,6 +40,22 @@ const initializeMessaging = async () => {
     if (!vapidKey) {
       console.log("VAPID key is not configured, using browser notifications only")
       return false
+    }
+
+    // Ensure service worker is registered
+    if ('serviceWorker' in navigator) {
+      try {
+        // Only register once
+        if (!swRegistration) {
+          swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+          console.log('Service worker registered for FCM')
+        }
+      } catch (swErr) {
+        console.error('Failed to register service worker:', swErr)
+        // Without a SW, background push will not work
+      }
+    } else {
+      console.log('Service workers are not supported in this browser')
     }
 
     // Import firebase/app dynamically to avoid SSR issues
@@ -99,7 +116,10 @@ export const requestNotificationPermission = async () => {
         // Get FCM token
         try {
           console.log("Getting FCM token...")
-          const currentToken = await getToken(messaging, { vapidKey })
+          const options = swRegistration
+            ? { vapidKey, serviceWorkerRegistration: swRegistration }
+            : { vapidKey }
+          const currentToken = await getToken(messaging, options)
 
           if (currentToken) {
             console.log("FCM Token obtained successfully")
